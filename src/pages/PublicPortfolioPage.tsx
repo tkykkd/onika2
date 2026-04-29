@@ -24,7 +24,7 @@ const FALLBACK_ITEMS: MediaItem[] = Array.from({ length: 17 }).map((_, i) => ({
 }));
 
 export default function PublicPortfolioPage() {
-  const adminHref = `${import.meta.env.BASE_URL}#/admin`;
+  const adminHref = `${window.location.origin}${import.meta.env.BASE_URL}#/admin`;
   const [selectedTag, setSelectedTag] = useState<(typeof TAGS)[number]>('All');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [videos, setVideos] = useState<MediaItem[]>([]);

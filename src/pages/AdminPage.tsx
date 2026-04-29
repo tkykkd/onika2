@@ -11,7 +11,7 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const ALLOWED_ADMIN_EMAILS = ['tkykkd@gmail.com'];
 
 export default function AdminPage() {
-  const homeHref = `${import.meta.env.BASE_URL}#/`;
+  const homeHref = `${window.location.origin}${import.meta.env.BASE_URL}#/`;
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
