@@ -1,0 +1,12 @@
+[
+  {
+    "id": "1",
+    "title": "Initial Animation",
+    "description": "My first Eddsworld fan art animation!",
+    "type": "video",
+    "url": "portfolio-assets/video1.mp4",
+    "thumbnail": "portfolio-assets/thumb1.jpg",
+    "tag": "Eddsworld",
+    "color": "#00A859"
+  }
+]
