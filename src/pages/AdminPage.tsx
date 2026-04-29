@@ -11,6 +11,7 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const ALLOWED_ADMIN_EMAILS = ['tkykkd@gmail.com'];
 
 export default function AdminPage() {
+  const homeHref = `${import.meta.env.BASE_URL}#/`;
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -134,7 +135,7 @@ export default function AdminPage() {
       <main className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight">Admin</h1>
-          <a href="/">
+          <a href={homeHref}>
             <Button variant="outline" className="rounded-none border-2 border-foreground">公開ページへ戻る</Button>
           </a>
         </div>
