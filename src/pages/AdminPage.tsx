@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 
 const MAX_UPLOAD_MB = 50;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-const ALLOWED_ADMIN_EMAILS = ['tkykkd@gmail.com'];
+const ALLOWED_ADMIN_EMAILS = ['tkykkd@gmail.com', 'karinyou2@gmail.com'];
 
 export default function AdminPage() {
   const homeHref = `${window.location.origin}${import.meta.env.BASE_URL}#/`;

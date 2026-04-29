@@ -25,12 +25,12 @@ create policy "media_select_public"
 drop policy if exists "media_insert_admin" on public.media_items;
 create policy "media_insert_admin"
   on public.media_items for insert
-  with check ((auth.jwt() ->> 'email') = 'tkykkd@gmail.com');
+  with check ((auth.jwt() ->> 'email') in ('tkykkd@gmail.com', 'karinyou2@gmail.com'));
 
 drop policy if exists "media_delete_admin" on public.media_items;
 create policy "media_delete_admin"
   on public.media_items for delete
-  using ((auth.jwt() ->> 'email') = 'tkykkd@gmail.com');
+  using ((auth.jwt() ->> 'email') in ('tkykkd@gmail.com', 'karinyou2@gmail.com'));
 
 -- 3) Storage bucket name must match app: portfolio-assets (public bucket in dashboard)
 -- Storage policies (RLS on storage.objects)
@@ -44,7 +44,7 @@ create policy "storage_portfolio_admin_insert"
   on storage.objects for insert
   with check (
     bucket_id = 'portfolio-assets'
-    and (auth.jwt() ->> 'email') = 'tkykkd@gmail.com'
+    and (auth.jwt() ->> 'email') in ('tkykkd@gmail.com', 'karinyou2@gmail.com')
   );
 
 drop policy if exists "storage_portfolio_admin_delete" on storage.objects;
@@ -52,5 +52,5 @@ create policy "storage_portfolio_admin_delete"
   on storage.objects for delete
   using (
     bucket_id = 'portfolio-assets'
-    and (auth.jwt() ->> 'email') = 'tkykkd@gmail.com'
+    and (auth.jwt() ->> 'email') in ('tkykkd@gmail.com', 'karinyou2@gmail.com')
   );
