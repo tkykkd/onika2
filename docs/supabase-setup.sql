@@ -5,7 +5,7 @@
 create table if not exists public.media_items (
   id uuid primary key default gen_random_uuid(),
   title text not null,
-  tag text not null check (tag in ('Eddsworld', 'Animation', 'Style Test', 'Original')),
+  tag text not null check (tag in ('Eddsworld', 'Animation', 'IMAGE', 'MOVIE', 'PICTURE')),
   color text not null check (color in ('#00A859', '#00AEEF', '#8E44AD', '#ED1C24')),
   kind text not null check (kind in ('image', 'video')),
   asset_url text not null,

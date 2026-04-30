@@ -10,13 +10,13 @@ import { isSupabaseConfigured } from '@/src/supabase';
 import { listMediaItems } from '@/src/lib/media-service';
 import type { MediaItem } from '@/src/types/media';
 
-const TAGS = ['All', 'Eddsworld', 'Animation', 'Style Test', 'Original'] as const;
-const FALLBACK_TAGS = ['Eddsworld', 'Animation', 'Style Test', 'Original'] as const;
+const TAGS = ['All', 'Eddsworld', 'Animation', 'IMAGE', 'MOVIE', 'PICTURE'] as const;
+const FALLBACK_TAGS = ['Eddsworld', 'Animation', 'IMAGE', 'MOVIE', 'PICTURE'] as const;
 const FALLBACK_COLORS = ['#00A859', '#00AEEF', '#8E44AD', '#ED1C24'] as const;
 const FALLBACK_ITEMS: MediaItem[] = Array.from({ length: 17 }).map((_, i) => ({
   id: `fallback-${i}`,
   title: `My Creation #${17 - i}`,
-  tag: FALLBACK_TAGS[i % 4],
+  tag: FALLBACK_TAGS[i % 5],
   color: FALLBACK_COLORS[i % 4],
   kind: 'video',
   assetUrl: '',
