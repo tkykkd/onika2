@@ -1,4 +1,4 @@
-export const TAG_OPTIONS = ['Eddsworld', 'Animation', 'IMAGE', 'MOVIE', 'PICTURE'] as const;
+export const TAG_OPTIONS = ['Eddsworld', 'Animation', 'IMG', 'MOVIE', 'PICTURE'] as const;
 export const COLOR_OPTIONS = ['#00A859', '#00AEEF', '#8E44AD', '#ED1C24'] as const;
 
 export type MediaTag = (typeof TAG_OPTIONS)[number];

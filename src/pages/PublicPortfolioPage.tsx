@@ -10,8 +10,8 @@ import { isSupabaseConfigured } from '@/src/supabase';
 import { listMediaItems } from '@/src/lib/media-service';
 import type { MediaItem } from '@/src/types/media';
 
-const TAGS = ['All', 'Eddsworld', 'Animation', 'IMAGE', 'MOVIE', 'PICTURE'] as const;
-const FALLBACK_TAGS = ['Eddsworld', 'Animation', 'IMAGE', 'MOVIE', 'PICTURE'] as const;
+const TAGS = ['All', 'Eddsworld', 'Animation', 'IMG', 'MOVIE', 'PICTURE'] as const;
+const FALLBACK_TAGS = ['Eddsworld', 'Animation', 'IMG', 'MOVIE', 'PICTURE'] as const;
 const FALLBACK_COLORS = ['#00A859', '#00AEEF', '#8E44AD', '#ED1C24'] as const;
 const FALLBACK_ITEMS: MediaItem[] = Array.from({ length: 17 }).map((_, i) => ({
   id: `fallback-${i}`,
@@ -24,7 +24,6 @@ const FALLBACK_ITEMS: MediaItem[] = Array.from({ length: 17 }).map((_, i) => ({
 }));
 
 export default function PublicPortfolioPage() {
-  const adminHref = `${window.location.origin}${import.meta.env.BASE_URL}#/admin`;
   const [selectedTag, setSelectedTag] = useState<(typeof TAGS)[number]>('All');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [videos, setVideos] = useState<MediaItem[]>([]);
@@ -88,11 +87,6 @@ export default function PublicPortfolioPage() {
 
           <div className="flex flex-col gap-4 text-right">
             <div className="flex gap-4 justify-end">
-              <a href={adminHref}>
-                <Button variant="outline" className="rounded-none border-2 border-foreground brutal-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
-                  管理者
-                </Button>
-              </a>
               <a href="https://www.tiktok.com/@onika1219" target="_blank" rel="noopener noreferrer">
                 <Button size="icon" variant="outline" className="rounded-none border-2 border-foreground brutal-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
                   <Music className="w-5 h-5" />
