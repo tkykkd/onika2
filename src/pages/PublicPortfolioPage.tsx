@@ -70,7 +70,10 @@ export default function PublicPortfolioPage() {
           <div className="flex flex-col gap-4">
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-24 h-24 border-4 border-foreground bg-white brutal-shadow overflow-hidden">
               <Avatar className="w-full h-full rounded-none">
-                <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" />
+                <AvatarImage
+                  src={`${import.meta.env.BASE_URL}profile-avatar.png`}
+                  alt="Portfolio avatar"
+                />
                 <AvatarFallback className="rounded-none">EA</AvatarFallback>
               </Avatar>
             </motion.div>
