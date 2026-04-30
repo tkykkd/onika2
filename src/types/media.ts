@@ -13,5 +13,7 @@ export type MediaItem = {
   kind: MediaKind;
   assetUrl: string;
   storagePath: string;
+  /** 小さいほど一覧の上（先頭）に近い */
+  displayOrder: number;
   createdAt?: number;
 };

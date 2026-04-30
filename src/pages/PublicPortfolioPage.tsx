@@ -22,6 +22,7 @@ const FALLBACK_ITEMS: MediaItem[] = Array.from({ length: 17 }).map((_, i) => ({
   kind: 'video',
   assetUrl: '',
   storagePath: '',
+  displayOrder: i,
 }));
 
 /** iOS / Safari でグレーになりやすいので、メタデータ読込後に先頭付近へシークして静止画っぽく見せる */

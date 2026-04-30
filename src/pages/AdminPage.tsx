@@ -1,10 +1,30 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { supabase, isSupabaseConfigured } from '@/src/supabase';
 import { COLOR_OPTIONS, TAG_OPTIONS, type MediaItem } from '@/src/types/media';
-import { listMediaItems, removeMediaItem, uploadMediaItem } from '@/src/lib/media-service';
+import {
+  listMediaItems,
+  removeMediaItem,
+  reorderMediaItems,
+  shiftMediaDisplayOrders,
+  uploadMediaItem,
+} from '@/src/lib/media-service';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const MAX_UPLOAD_MB = 50;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
@@ -13,6 +33,69 @@ const ALLOWED_ADMIN_EMAILS = ['tkykkd@gmail.com', 'karinyou2@gmail.com'];
 function titleFromFileName(name: string): string {
   const withoutExt = name.replace(/\.[^.]+$/u, '');
   return withoutExt.trim() || name;
+}
+
+function SortableMediaCard({
+  item,
+  disabled,
+  onDelete,
+}: {
+  item: MediaItem;
+  disabled: boolean;
+  onDelete: (item: MediaItem) => void | Promise<void>;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'border-2 border-foreground bg-white p-3 space-y-2',
+        isDragging && 'z-20 opacity-70 shadow-lg ring-2 ring-foreground',
+      )}
+      {...attributes}
+    >
+      <div
+        {...listeners}
+        className="touch-manipulation cursor-grab active:cursor-grabbing select-none rounded-sm border-2 border-dashed border-foreground/25 bg-foreground/5 px-2 py-2 -mx-1 -mt-1"
+      >
+        <div className="flex items-start gap-2">
+          <GripVertical className="mt-0.5 h-5 w-5 shrink-0 text-foreground/70" aria-hidden />
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="rounded-none border-2 border-foreground bg-white text-foreground">{item.tag}</Badge>
+              <span className="font-bold break-words">{item.title}</span>
+            </div>
+            <p className="text-xs font-medium text-foreground/80">
+              この枠をドラッグ（スマホは約 0.2 秒長押し → 移動）。下の再生・削除はそのまま操作できます。
+            </p>
+          </div>
+        </div>
+      </div>
+      {item.kind === 'video' ? (
+        <video src={item.assetUrl} controls className="w-full aspect-[9/16] object-cover border-2 border-foreground" />
+      ) : (
+        <img src={item.assetUrl} alt={item.title} className="w-full aspect-[9/16] object-cover border-2 border-foreground" />
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => onDelete(item)}
+        className="rounded-none border-2 border-foreground w-full"
+        disabled={disabled}
+      >
+        削除（即時）
+      </Button>
+    </div>
+  );
 }
 
 export default function AdminPage() {
@@ -27,6 +110,18 @@ export default function AdminPage() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const isBulk = selectedFiles.length > 1;
   const canSubmit = useMemo(() => {
@@ -124,6 +219,9 @@ export default function AdminPage() {
     setIsLoading(true);
     setUploadProgress({ current: 0, total: files.length });
     try {
+      if (files.length > 1) {
+        await shiftMediaDisplayOrders(files.length);
+      }
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         setUploadProgress({ current: i + 1, total: files.length });
@@ -133,6 +231,8 @@ export default function AdminPage() {
           title: itemTitle,
           tag,
           color,
+          displayOrder: i,
+          applyShift: files.length === 1,
         });
       }
       setTitle('');
@@ -143,6 +243,31 @@ export default function AdminPage() {
       setError('アップロードに失敗しました。RLS・Storage権限を確認してください。');
     } finally {
       setUploadProgress(null);
+      setIsLoading(false);
+    }
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const next: MediaItem[] = arrayMove(items, oldIndex, newIndex);
+    setItems(next);
+    setError(null);
+    setIsLoading(true);
+    try {
+      await reorderMediaItems(next.map((i) => i.id));
+    } catch {
+      setError('並び替えの保存に失敗しました。最新の状態を再読み込みします。');
+      try {
+        await refreshItems();
+      } catch {
+        /* ignore */
+      }
+    } finally {
       setIsLoading(false);
     }
   }
@@ -277,30 +402,21 @@ export default function AdminPage() {
             </Card>
 
             <Card className="rounded-none border-2 border-foreground brutal-shadow p-6 space-y-4">
-              <h2 className="text-xl font-black uppercase">登録済み一覧</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {items.map((item) => (
-                  <div key={item.id} className="border-2 border-foreground p-3 bg-white space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Badge className="rounded-none border-2 border-foreground bg-white text-foreground">{item.tag}</Badge>
-                      <span className="font-bold">{item.title}</span>
-                    </div>
-                    {item.kind === 'video' ? (
-                      <video src={item.assetUrl} controls className="w-full aspect-[9/16] object-cover border-2 border-foreground" />
-                    ) : (
-                      <img src={item.assetUrl} alt={item.title} className="w-full aspect-[9/16] object-cover border-2 border-foreground" />
-                    )}
-                    <Button
-                      variant="outline"
-                      onClick={() => handleDelete(item)}
-                      className="rounded-none border-2 border-foreground"
-                      disabled={isLoading}
-                    >
-                      削除（即時）
-                    </Button>
-                  </div>
-                ))}
+              <div className="space-y-1">
+                <h2 className="text-xl font-black uppercase">登録済み一覧（ドラッグで順番変更）</h2>
+                <p className="text-sm font-medium leading-snug">
+                  上に近いほど公開ページでも先に表示されます。各カード上部の点線枠をドラッグして並べ替えます。スマホは長押ししてから動かすとスクロールと区別しやすいです。
+                </p>
               </div>
+              <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+                <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {items.map((item) => (
+                      <SortableMediaCard key={item.id} item={item} disabled={isLoading} onDelete={handleDelete} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </Card>
           </>
         )}

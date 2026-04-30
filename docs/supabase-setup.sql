@@ -10,9 +10,12 @@ create table if not exists public.media_items (
   kind text not null check (kind in ('image', 'video')),
   asset_url text not null,
   storage_path text not null,
+  display_order integer not null default 0,
   created_by text,
   created_at timestamptz not null default now()
 );
+
+create index if not exists media_items_display_order_idx on public.media_items (display_order asc);
 
 alter table public.media_items enable row level security;
 
@@ -31,6 +34,45 @@ drop policy if exists "media_delete_admin" on public.media_items;
 create policy "media_delete_admin"
   on public.media_items for delete
   using ((auth.jwt() ->> 'email') in ('tkykkd@gmail.com', 'karinyou2@gmail.com'));
+
+drop policy if exists "media_update_admin" on public.media_items;
+create policy "media_update_admin"
+  on public.media_items for update
+  using ((auth.jwt() ->> 'email') in ('tkykkd@gmail.com', 'karinyou2@gmail.com'))
+  with check ((auth.jwt() ->> 'email') in ('tkykkd@gmail.com', 'karinyou2@gmail.com'));
+
+-- Reorder + shift RPCs (used by the web app for drag order and new-at-top inserts)
+create or replace function public.media_shift_display_orders(p_delta integer)
+returns void
+language sql
+security invoker
+set search_path = public
+as $$
+  update public.media_items set display_order = display_order + p_delta;
+$$;
+
+create or replace function public.media_set_display_order(p_ids uuid[])
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  i integer;
+begin
+  if p_ids is null then
+    return;
+  end if;
+  for i in 1..coalesce(array_length(p_ids, 1), 0) loop
+    update public.media_items
+    set display_order = i - 1
+    where id = p_ids[i];
+  end loop;
+end;
+$$;
+
+grant execute on function public.media_shift_display_orders(integer) to authenticated;
+grant execute on function public.media_set_display_order(uuid[]) to authenticated;
 
 -- 3) Storage bucket name must match app: portfolio-assets (public bucket in dashboard)
 -- Storage policies (RLS on storage.objects)
