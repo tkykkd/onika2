@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Heart, MessageCircle, Instagram, Sparkles, Palette, Camera, Music } from 'lucide-react';
+import { Play, Heart, MessageCircle, Instagram, Sparkles, Palette, Camera, Music, ZoomIn, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -23,12 +24,88 @@ const FALLBACK_ITEMS: MediaItem[] = Array.from({ length: 17 }).map((_, i) => ({
   storagePath: '',
 }));
 
+/** iOS / Safari でグレーになりやすいので、メタデータ読込後に先頭付近へシークして静止画っぽく見せる */
+function VideoPosterPreview({ src, className }: { src: string; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    let cancelled = false;
+
+    const paintFirstFrame = () => {
+      if (cancelled || !el) return;
+      try {
+        const seekTo =
+          Number.isFinite(el.duration) && el.duration > 0
+            ? Math.min(0.12, el.duration * 0.02)
+            : 0.05;
+        el.currentTime = seekTo;
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onSeeked = () => {
+      el.pause();
+    };
+
+    el.addEventListener('loadedmetadata', paintFirstFrame);
+    el.addEventListener('loadeddata', paintFirstFrame);
+    el.addEventListener('seeked', onSeeked);
+
+    return () => {
+      cancelled = true;
+      el.removeEventListener('loadedmetadata', paintFirstFrame);
+      el.removeEventListener('loadeddata', paintFirstFrame);
+      el.removeEventListener('seeked', onSeeked);
+    };
+  }, [src]);
+
+  const hintedSrc = src.includes('#') ? src : `${src}#t=0.001`;
+
+  return (
+    <video
+      ref={ref}
+      src={hintedSrc}
+      className={className}
+      muted
+      playsInline
+      preload="auto"
+      tabIndex={-1}
+      aria-hidden
+    />
+  );
+}
+
 export default function PublicPortfolioPage() {
   const [selectedTag, setSelectedTag] = useState<(typeof TAGS)[number]>('All');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [videos, setVideos] = useState<MediaItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lightboxItem, setLightboxItem] = useState<MediaItem | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxItem(null);
+  }, []);
+
+  useEffect(() => {
+    if (!lightboxItem) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeLightbox();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [lightboxItem, closeLightbox]);
 
   useEffect(() => {
     async function load() {
@@ -54,6 +131,55 @@ export default function PublicPortfolioPage() {
     if (selectedTag === 'All') return videos;
     return videos.filter((v) => v.tag === selectedTag);
   }, [selectedTag, videos]);
+
+  const lightbox =
+    lightboxItem && lightboxItem.assetUrl
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="media-lightbox-title"
+            onClick={closeLightbox}
+          >
+            <button
+              ref={closeButtonRef}
+              type="button"
+              onClick={closeLightbox}
+              className="absolute right-4 top-4 z-[110] flex h-12 w-12 items-center justify-center border-2 border-white bg-white text-foreground brutal-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+              aria-label="閉じる"
+            >
+              <X className="h-6 w-6" strokeWidth={3} />
+            </button>
+            <div
+              className="relative max-h-[90vh] max-w-[min(100vw-2rem,1200px)] w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p id="media-lightbox-title" className="sr-only">
+                {lightboxItem.title}
+              </p>
+              {lightboxItem.kind === 'video' ? (
+                <video
+                  key={lightboxItem.id}
+                  src={lightboxItem.assetUrl}
+                  controls
+                  playsInline
+                  className="mx-auto max-h-[85vh] w-full rounded-none border-2 border-white bg-black object-contain"
+                  autoPlay
+                />
+              ) : (
+                <img
+                  src={lightboxItem.assetUrl}
+                  alt={lightboxItem.title}
+                  className="mx-auto max-h-[85vh] w-full border-2 border-white object-contain"
+                />
+              )}
+              <p className="mt-3 text-center font-black uppercase tracking-tight text-white">{lightboxItem.title}</p>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-neon-blue selection:text-white font-sans overflow-x-hidden p-4 md:p-8">
@@ -133,59 +259,85 @@ export default function PublicPortfolioPage() {
         <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           <AnimatePresence mode="popLayout">
             {filteredVideos.map((video, idx) => (
-              <motion.div key={video.id} layout initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ delay: idx * 0.05 }} className="group h-full" onMouseEnter={() => setHoveredId(video.id)} onMouseLeave={() => setHoveredId(null)}>
-                <Card
+              <motion.div
+                key={video.id}
+                layout
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ delay: idx * 0.05 }}
+                className="h-full"
+                onMouseEnter={() => setHoveredId(video.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                <button
+                  type="button"
+                  disabled={!video.assetUrl}
+                  onClick={() => video.assetUrl && setLightboxItem(video)}
                   className={cn(
-                    'relative overflow-hidden group rounded-none border-2 border-foreground transition-all duration-300 aspect-[9/16]',
-                    hoveredId === video.id ? 'brutal-shadow-lg scale-[1.02]' : 'brutal-shadow',
+                    'group relative h-full w-full cursor-pointer border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                    !video.assetUrl && 'cursor-not-allowed opacity-70',
                   )}
-                  style={{
-                    boxShadow: hoveredId === video.id ? `8px 8px 0px 0px ${video.color}` : '4px 4px 0px 0px #1A1A1A',
-                  }}
                 >
-                  {video.assetUrl ? (
-                    video.kind === 'video' ? (
-                      <video src={video.assetUrl} className="absolute inset-0 h-full w-full object-cover" muted loop playsInline />
+                  <Card
+                    className={cn(
+                      'relative gap-0 overflow-hidden rounded-none border-2 border-foreground p-0 transition-all duration-300 aspect-[9/16]',
+                      hoveredId === video.id ? 'brutal-shadow-lg scale-[1.02]' : 'brutal-shadow',
+                    )}
+                    style={{
+                      boxShadow: hoveredId === video.id ? `8px 8px 0px 0px ${video.color}` : '4px 4px 0px 0px #1A1A1A',
+                    }}
+                  >
+                    {video.assetUrl ? (
+                      video.kind === 'video' ? (
+                        <VideoPosterPreview
+                          src={video.assetUrl}
+                          className="absolute inset-0 h-full w-full bg-neutral-800 object-cover"
+                        />
+                      ) : (
+                        <img src={video.assetUrl} alt={video.title} className="absolute inset-0 h-full w-full object-cover" />
+                      )
                     ) : (
-                      <img src={video.assetUrl} alt={video.title} className="absolute inset-0 h-full w-full object-cover" />
-                    )
-                  ) : (
-                    <div className="absolute inset-0 bg-secondary/60" />
-                  )}
+                      <div className="absolute inset-0 bg-secondary/60" />
+                    )}
 
-                  <div className="absolute inset-0 bg-black/25 flex flex-col justify-between p-4">
-                    <div className="flex justify-between items-start">
-                      <Badge className="rounded-none border-2 border-foreground bg-white text-foreground hover:bg-white px-2 py-1 font-bold">
-                        {video.tag}
-                      </Badge>
-                      <motion.div animate={{ rotate: hoveredId === video.id ? 360 : 0 }} className="bg-white p-2 border-2 border-foreground">
-                        <Sparkles size={16} style={{ color: video.color }} />
-                      </motion.div>
-                    </div>
-                    <div className="relative z-10 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                      <h3 className="text-xl font-black uppercase tracking-tight bg-white border-2 border-foreground px-2 inline-block mb-2">
-                        {video.title}
-                      </h3>
-                      <div className="flex items-center gap-4 bg-white border-2 border-foreground p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="flex items-center gap-1 font-bold text-xs"><Heart size={14} /> Live</div>
-                        <div className="flex items-center gap-1 font-bold text-xs"><MessageCircle size={14} /> New</div>
+                    <div className="pointer-events-none absolute inset-0 flex flex-col justify-between bg-black/25 p-4">
+                      <div className="flex justify-between items-start">
+                        <Badge className="rounded-none border-2 border-foreground bg-white text-foreground hover:bg-white px-2 py-1 font-bold">
+                          {video.tag}
+                        </Badge>
+                        <motion.div animate={{ rotate: hoveredId === video.id ? 360 : 0 }} className="bg-white p-2 border-2 border-foreground">
+                          <Sparkles size={16} style={{ color: video.color }} />
+                        </motion.div>
+                      </div>
+                      <div className="relative z-10 translate-y-4 transition-transform duration-300 group-hover:translate-y-0 max-md:translate-y-0">
+                        <h3 className="text-xl font-black uppercase tracking-tight bg-white border-2 border-foreground px-2 inline-block mb-2">
+                          {video.title}
+                        </h3>
+                        <div className="flex items-center gap-4 bg-white border-2 border-foreground p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 max-md:hidden">
+                          <div className="flex items-center gap-1 font-bold text-xs"><Heart size={14} /> Live</div>
+                          <div className="flex items-center gap-1 font-bold text-xs"><MessageCircle size={14} /> New</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {video.kind === 'video' ? (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="w-16 h-16 bg-white border-4 border-foreground flex items-center justify-center brutal-shadow-lg">
-                        <Play className="fill-foreground ml-1" size={32} />
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-70 transition-opacity duration-300 md:opacity-0 md:group-hover:opacity-100">
+                      <div className="flex h-16 w-16 items-center justify-center border-4 border-foreground bg-white brutal-shadow-lg">
+                        {video.kind === 'video' ? (
+                          <Play className="ml-1 fill-foreground" size={32} aria-hidden />
+                        ) : (
+                          <ZoomIn className="text-foreground" size={28} strokeWidth={3} aria-hidden />
+                        )}
                       </div>
                     </div>
-                  ) : null}
-                </Card>
+                  </Card>
+                </button>
               </motion.div>
             ))}
           </AnimatePresence>
         </motion.div>
       </main>
+      {lightbox}
     </div>
   );
 }
