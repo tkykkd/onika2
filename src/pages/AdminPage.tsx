@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { supabase, isSupabaseConfigured } from '@/src/supabase';
 import { COLOR_OPTIONS, TAG_OPTIONS, type MediaItem } from '@/src/types/media';
 import { listMediaItems, removeMediaItem, uploadMediaItem } from '@/src/lib/media-service';
@@ -10,6 +10,11 @@ const MAX_UPLOAD_MB = 50;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const ALLOWED_ADMIN_EMAILS = ['tkykkd@gmail.com', 'karinyou2@gmail.com'];
 
+function titleFromFileName(name: string): string {
+  const withoutExt = name.replace(/\.[^.]+$/u, '');
+  return withoutExt.trim() || name;
+}
+
 export default function AdminPage() {
   const homeHref = `${window.location.origin}${import.meta.env.BASE_URL}#/`;
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
@@ -18,10 +23,17 @@ export default function AdminPage() {
   const [title, setTitle] = useState('');
   const [tag, setTag] = useState<(typeof TAG_OPTIONS)[number]>('Eddsworld');
   const [color, setColor] = useState<(typeof COLOR_OPTIONS)[number]>('#00A859');
-  const [file, setFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canSubmit = useMemo(() => title.trim().length > 0 && !!file && !isLoading, [title, file, isLoading]);
+  const isBulk = selectedFiles.length > 1;
+  const canSubmit = useMemo(() => {
+    if (isLoading || selectedFiles.length === 0) return false;
+    if (isBulk) return true;
+    return title.trim().length > 0;
+  }, [isLoading, selectedFiles.length, isBulk, title]);
 
   function applySession(email: string | undefined | null) {
     if (email && ALLOWED_ADMIN_EMAILS.includes(email)) {
@@ -89,30 +101,48 @@ export default function AdminPage() {
 
   async function handleUpload(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!file || file.size > MAX_UPLOAD_BYTES) {
-      setError(`ファイルサイズは${MAX_UPLOAD_MB}MB以下にしてください。`);
-      return;
+    const files = selectedFiles;
+    if (files.length === 0) return;
+
+    for (const f of files) {
+      if (f.size > MAX_UPLOAD_BYTES) {
+        setError(`「${f.name}」は${MAX_UPLOAD_MB}MB以下にしてください。`);
+        return;
+      }
+      if (!f.type.startsWith('image/') && !f.type.startsWith('video/')) {
+        setError(`「${f.name}」は画像または動画のみアップロードできます。`);
+        return;
+      }
     }
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-      setError('画像または動画ファイルのみアップロードできます。');
+
+    if (!isBulk && !title.trim()) {
+      setError('タイトルを入力してください。');
       return;
     }
 
     setError(null);
     setIsLoading(true);
+    setUploadProgress({ current: 0, total: files.length });
     try {
-      await uploadMediaItem({
-        file,
-        title: title.trim(),
-        tag,
-        color,
-      });
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress({ current: i + 1, total: files.length });
+        const itemTitle = isBulk ? titleFromFileName(file.name) : title.trim();
+        await uploadMediaItem({
+          file,
+          title: itemTitle,
+          tag,
+          color,
+        });
+      }
       setTitle('');
-      setFile(null);
+      setSelectedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       await refreshItems();
     } catch {
       setError('アップロードに失敗しました。RLS・Storage権限を確認してください。');
     } finally {
+      setUploadProgress(null);
       setIsLoading(false);
     }
   }
@@ -163,12 +193,18 @@ export default function AdminPage() {
               <form onSubmit={handleUpload} className="space-y-4">
                 <div className="space-y-2">
                   <label className="font-bold">タイトル</label>
-                  <input
-                    className="w-full border-2 border-foreground bg-white px-3 py-2"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="例: New Animation #1"
-                  />
+                  {isBulk ? (
+                    <p className="text-sm font-medium">
+                      複数ファイル選択中は、各ファイルの名前（拡張子なし）がタイトルになります。
+                    </p>
+                  ) : (
+                    <input
+                      className="w-full border-2 border-foreground bg-white px-3 py-2"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="例: New Animation #1"
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -206,13 +242,23 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="font-bold">画像または動画（最大50MB）</label>
+                  <label className="font-bold">画像または動画（最大50MB・複数選択可）</label>
                   <input
+                    ref={fileInputRef}
                     type="file"
+                    multiple
                     accept="image/*,video/*"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      const list = e.target.files;
+                      setSelectedFiles(list ? Array.from(list) : []);
+                    }}
                     className="w-full border-2 border-foreground bg-white px-3 py-2"
                   />
+                  {selectedFiles.length > 0 ? (
+                    <p className="text-sm font-medium">
+                      {selectedFiles.length} 件選択中
+                    </p>
+                  ) : null}
                 </div>
 
                 <Button
@@ -220,7 +266,11 @@ export default function AdminPage() {
                   disabled={!canSubmit}
                   className="rounded-none border-2 border-foreground brutal-shadow"
                 >
-                  {isLoading ? '処理中...' : 'アップロード'}
+                  {isLoading && uploadProgress
+                    ? `アップロード中 ${uploadProgress.current} / ${uploadProgress.total} …`
+                    : isLoading
+                      ? '処理中...'
+                      : 'アップロード'}
                 </Button>
               </form>
               {error ? <p className="text-red font-bold">{error}</p> : null}

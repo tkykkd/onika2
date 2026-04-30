@@ -53,7 +53,7 @@ export async function uploadMediaItem(params: {
 
   const kind: MediaKind = params.file.type.startsWith('video/') ? 'video' : 'image';
   const safeFileName = params.file.name.replace(/\s+/g, '-');
-  const storagePath = `${Date.now()}-${safeFileName}`;
+  const storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeFileName}`;
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
