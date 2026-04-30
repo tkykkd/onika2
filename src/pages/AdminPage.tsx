@@ -65,7 +65,7 @@ function SortableMediaCard({
     >
       <div
         {...listeners}
-        className="touch-manipulation cursor-grab active:cursor-grabbing select-none rounded-sm border-2 border-dashed border-foreground/25 bg-foreground/5 px-2 py-2 -mx-1 -mt-1"
+        className="touch-none cursor-grab active:cursor-grabbing select-none rounded-sm border-2 border-dashed border-foreground/25 bg-foreground/5 px-2 py-2 -mx-1 -mt-1"
       >
         <div className="flex items-start gap-2">
           <GripVertical className="mt-0.5 h-5 w-5 shrink-0 text-foreground/70" aria-hidden />
@@ -81,9 +81,19 @@ function SortableMediaCard({
         </div>
       </div>
       {item.kind === 'video' ? (
-        <video src={item.assetUrl} controls className="w-full aspect-[9/16] object-cover border-2 border-foreground" />
+        <video
+          src={item.assetUrl}
+          muted
+          playsInline
+          preload="metadata"
+          className="w-full aspect-[9/16] object-cover border-2 border-foreground pointer-events-none"
+        />
       ) : (
-        <img src={item.assetUrl} alt={item.title} className="w-full aspect-[9/16] object-cover border-2 border-foreground" />
+        <img
+          src={item.assetUrl}
+          alt={item.title}
+          className="w-full aspect-[9/16] object-cover border-2 border-foreground pointer-events-none"
+        />
       )}
       <Button
         type="button"
