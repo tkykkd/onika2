@@ -99,7 +99,7 @@ function SortableMediaCard({
 }
 
 export default function AdminPage() {
-  const homeHref = `${window.location.origin}${import.meta.env.BASE_URL}#/`;
+  const homeHref = '#/';
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
