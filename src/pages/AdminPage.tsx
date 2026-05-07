@@ -6,6 +6,7 @@ import {
   removeMediaItem,
   reorderMediaItems,
   shiftMediaDisplayOrders,
+  updateMediaItemMeta,
   uploadMediaItem,
 } from '@/src/lib/media-service';
 import { Button } from '@/components/ui/button';
@@ -39,11 +40,26 @@ function SortableMediaCard({
   item,
   disabled,
   onDelete,
+  onUpdate,
+  isSaving,
 }: {
   item: MediaItem;
   disabled: boolean;
   onDelete: (item: MediaItem) => void | Promise<void>;
+  onUpdate: (params: { id: string; title: string; tag: (typeof TAG_OPTIONS)[number]; color: (typeof COLOR_OPTIONS)[number] }) => void | Promise<void>;
+  isSaving: boolean;
 }) {
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editTag, setEditTag] = useState<(typeof TAG_OPTIONS)[number]>(item.tag);
+  const [editColor, setEditColor] = useState<(typeof COLOR_OPTIONS)[number]>(item.color);
+
+  useEffect(() => {
+    setEditTitle(item.title);
+    setEditTag(item.tag);
+    setEditColor(item.color);
+  }, [item.id, item.title, item.tag, item.color]);
+
+  const hasChanges = editTitle.trim() !== item.title || editTag !== item.tag || editColor !== item.color;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled,
@@ -95,6 +111,60 @@ function SortableMediaCard({
           className="w-full aspect-[9/16] object-cover border-2 border-foreground pointer-events-none"
         />
       )}
+      <div className="space-y-2">
+        <label className="text-xs font-bold">表示名（ファイル名として表示されるタイトル）</label>
+        <input
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          className="w-full border-2 border-foreground bg-white px-2 py-2 text-sm"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="text-xs font-bold">タグ</label>
+          <select
+            value={editTag}
+            onChange={(e) => setEditTag(e.target.value as (typeof TAG_OPTIONS)[number])}
+            className="w-full border-2 border-foreground bg-white px-2 py-2 text-sm"
+          >
+            {TAG_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-bold">カラー</label>
+          <select
+            value={editColor}
+            onChange={(e) => setEditColor(e.target.value as (typeof COLOR_OPTIONS)[number])}
+            className="w-full border-2 border-foreground bg-white px-2 py-2 text-sm"
+          >
+            {COLOR_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() =>
+          onUpdate({
+            id: item.id,
+            title: editTitle.trim(),
+            tag: editTag,
+            color: editColor,
+          })
+        }
+        className="rounded-none border-2 border-foreground w-full"
+        disabled={disabled || isSaving || !hasChanges || !editTitle.trim()}
+      >
+        {isSaving ? '保存中...' : '変更を保存'}
+      </Button>
       <Button
         type="button"
         variant="outline"
@@ -119,6 +189,7 @@ export default function AdminPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
@@ -295,6 +366,33 @@ export default function AdminPage() {
     }
   }
 
+  async function handleUpdateItem(params: {
+    id: string;
+    title: string;
+    tag: (typeof TAG_OPTIONS)[number];
+    color: (typeof COLOR_OPTIONS)[number];
+  }) {
+    if (!params.title.trim()) {
+      setError('タイトルを入力してください。');
+      return;
+    }
+    setError(null);
+    setSavingItemId(params.id);
+    try {
+      await updateMediaItemMeta({
+        id: params.id,
+        title: params.title.trim(),
+        tag: params.tag,
+        color: params.color,
+      });
+      await refreshItems();
+    } catch {
+      setError('編集の保存に失敗しました。');
+    } finally {
+      setSavingItemId(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
       <main className="max-w-5xl mx-auto space-y-6">
@@ -422,7 +520,14 @@ export default function AdminPage() {
                 <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {items.map((item) => (
-                      <SortableMediaCard key={item.id} item={item} disabled={isLoading} onDelete={handleDelete} />
+                      <SortableMediaCard
+                        key={item.id}
+                        item={item}
+                        disabled={isLoading}
+                        isSaving={savingItemId === item.id}
+                        onUpdate={handleUpdateItem}
+                        onDelete={handleDelete}
+                      />
                     ))}
                   </div>
                 </SortableContext>

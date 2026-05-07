@@ -110,6 +110,25 @@ export async function reorderMediaItems(orderedIds: string[]): Promise<void> {
   if (error) throw error;
 }
 
+export async function updateMediaItemMeta(params: {
+  id: string;
+  title: string;
+  tag: MediaTag;
+  color: MediaColor;
+}): Promise<void> {
+  if (!supabase) throw new Error('SUPABASE_NOT_CONFIGURED');
+  await requireAdminEmail();
+  const { error } = await supabase
+    .from(TABLE)
+    .update({
+      title: params.title,
+      tag: params.tag,
+      color: params.color,
+    })
+    .eq('id', params.id);
+  if (error) throw error;
+}
+
 export async function removeMediaItem(item: MediaItem): Promise<void> {
   if (!supabase) throw new Error('SUPABASE_NOT_CONFIGURED');
 
