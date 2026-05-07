@@ -132,6 +132,7 @@ export default function PublicPortfolioPage() {
     if (selectedTag === 'All') return videos;
     return videos.filter((v) => v.tag === selectedTag);
   }, [selectedTag, videos]);
+  const adminHref = '#/admin';
 
   const lightbox =
     lightboxItem && lightboxItem.assetUrl
@@ -217,6 +218,11 @@ export default function PublicPortfolioPage() {
 
           <div className="flex flex-col gap-4 text-right">
             <div className="flex gap-4 justify-end">
+              <a href={adminHref}>
+                <Button variant="outline" className="rounded-none border-2 border-foreground brutal-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all font-bold px-4">
+                  ログイン
+                </Button>
+              </a>
               <a href="https://www.tiktok.com/@onika1219" target="_blank" rel="noopener noreferrer">
                 <Button size="icon" variant="outline" className="rounded-none border-2 border-foreground brutal-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
                   <Music className="w-5 h-5" />
